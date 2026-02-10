@@ -50,15 +50,16 @@ async def networking_recommendations(payload: NetworkingRequest):
 
 @router.get("/rag/snapshot", response_model=dict)
 async def rag_snapshot():
-    """Build a frontend-shaped snapshot from MongoDB.
+    """Build a comprehensive snapshot from MongoDB for RAG context.
 
-    This helps keep your RAG JSON aligned with the frontend types:
-    - Event uses name/startDate/location
-    - Attendees are derived from registrations (until a richer attendee profile model exists)
+    Pulls events, users (attendees), registrations, and injects rich FAQ data
+    so the chatbot can answer questions about the platform, events, attendees,
+    networking, and logistics.
     """
 
     db = await get_database()
 
+    # ── Events ────────────────────────────────────────────────────────────
     events_raw = await db.events.find({}).sort("start_date", 1).to_list(200)
     events = []
     for e in events_raw:
@@ -78,9 +79,29 @@ async def rag_snapshot():
             }
         )
 
-    registrations_raw = await db.registrations.find({}).sort("created_at", -1).to_list(500)
+    # ── Attendees from users collection ───────────────────────────────────
+    users_raw = await db.users.find({}).to_list(500)
     seen_attendees: set[str] = set()
     attendees = []
+    for u in users_raw:
+        uid = str(u.get("_id"))
+        if uid in seen_attendees:
+            continue
+        seen_attendees.add(uid)
+        attendees.append(
+            {
+                "id": uid,
+                "name": u.get("name", "Unknown"),
+                "email": u.get("email"),
+                "company": u.get("company"),
+                "industry": u.get("industry"),
+                "role": u.get("role", "ATTENDEE"),
+                "interests": u.get("interests", []),
+            }
+        )
+
+    # ── Also pull from registrations (legacy) ─────────────────────────────
+    registrations_raw = await db.registrations.find({}).sort("created_at", -1).to_list(500)
     for r in registrations_raw:
         form_responses = r.get("form_responses")
         interests: list[str] = []
@@ -108,13 +129,92 @@ async def rag_snapshot():
             }
         )
 
+    # ── Rich FAQ ──────────────────────────────────────────────────────────
+    total_events = len(events)
+    total_attendees = len(attendees)
+    total_capacity = sum(e.get("capacity", 0) for e in events)
+    total_registrations = sum(e.get("registeredCount", 0) for e in events)
+    event_names = ", ".join(e.get("name", "Untitled") for e in events[:10]) or "No events yet"
+    event_locations = ", ".join(set(e.get("location", "") for e in events if e.get("location"))) or "No locations set"
+
     faq = [
         {
             "question": "Where can I find event schedules and venue information?",
             "answer": "Use the Dashboard for event summaries and the Venue Editor for layout details. For live sessions, check the Event Hub.",
             "category": "logistics",
             "audience": "attendee",
-        }
+        },
+        {
+            "question": "How many events are there? What events do we have?",
+            "answer": f"There are currently {total_events} events on the platform: {event_names}.",
+            "category": "overview",
+            "audience": "all",
+        },
+        {
+            "question": "How many attendees or users are registered?",
+            "answer": f"There are {total_attendees} registered users on the platform, with {total_registrations} total event registrations across {total_events} events.",
+            "category": "overview",
+            "audience": "organizer",
+        },
+        {
+            "question": "What is the total capacity across all events?",
+            "answer": f"The combined capacity across all events is {total_capacity} seats.",
+            "category": "overview",
+            "audience": "organizer",
+        },
+        {
+            "question": "Where are the events located? What are the event locations?",
+            "answer": f"Events are located at: {event_locations}.",
+            "category": "logistics",
+            "audience": "attendee",
+        },
+        {
+            "question": "How does AI networking work?",
+            "answer": "The AI Networking feature uses weighted-similarity matching based on your interests, industry, and company to recommend the best people to connect with at events. Update your profile interests to get better matches.",
+            "category": "feature",
+            "audience": "attendee",
+        },
+        {
+            "question": "How do I update my profile or interests?",
+            "answer": "Go to the 'My Profile' section from the sidebar or click your avatar in the top-right. You can update your name, company, industry, phone, and interests there. Interests directly affect AI networking recommendations.",
+            "category": "feature",
+            "audience": "attendee",
+        },
+        {
+            "question": "What features does EventNexus offer?",
+            "answer": "EventNexus offers: Dashboard analytics, Event creation & management, AI Networking (smart attendee matching), RAG-powered AI Assistant, Venue Editor (interactive floor plans), Badge generation, Session management with live polls, Q&A, and real-time engagement tracking.",
+            "category": "feature",
+            "audience": "all",
+        },
+        {
+            "question": "How do I create a new event?",
+            "answer": "As an organizer, go to the Dashboard and click 'Create New Event'. Fill in the name, date, location, capacity, and description. The event will be saved to MongoDB and visible on the platform immediately.",
+            "category": "feature",
+            "audience": "organizer",
+        },
+        {
+            "question": "What technology stack does this platform use?",
+            "answer": "The backend uses FastAPI (Python) with MongoDB Atlas for the database. Authentication uses JWT tokens with bcrypt password hashing. The frontend is React 19 with TypeScript, Vite, and TailwindCSS. AI features use sentence-transformers for semantic search and token-Jaccard as a fallback.",
+            "category": "technical",
+            "audience": "all",
+        },
+        {
+            "question": "How do I register for an event?",
+            "answer": "Navigate to the Events section, find the event you want to attend, and click Register. You'll receive a QR code ticket for check-in.",
+            "category": "logistics",
+            "audience": "attendee",
+        },
+        {
+            "question": "Who are the attendees? List the registered users.",
+            "answer": f"There are {total_attendees} registered users. " + (
+                "Some attendees include: " + ", ".join(
+                    f"{a.get('name', 'Unknown')} ({a.get('company') or 'no company'})"
+                    for a in attendees[:8]
+                ) + "." if attendees else "No attendees registered yet."
+            ),
+            "category": "networking",
+            "audience": "all",
+        },
     ]
 
     return {"events": events, "sessions": [], "attendees": attendees, "faq": faq}
