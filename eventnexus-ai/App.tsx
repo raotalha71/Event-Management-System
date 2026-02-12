@@ -107,7 +107,7 @@ const App: React.FC = () => {
       case 'venue':
         return <VenueEditor />;
       case 'networking':
-        return <AINetworking currentUser={currentUser} />;
+        return <AINetworking currentUser={currentUser} onTabChange={setCurrentTab} />;
       case 'badges':
         return <Badges />;
       case 'assistant':

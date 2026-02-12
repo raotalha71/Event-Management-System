@@ -62,6 +62,8 @@ export interface SignupPayload {
   company?: string;
   industry?: string;
   interests?: string[];
+  skills?: string[];
+  goals?: string[];
   role?: string;
 }
 
@@ -81,6 +83,8 @@ export interface ProfileUpdate {
   company?: string;
   industry?: string;
   interests?: string[];
+  skills?: string[];
+  goals?: string[];
   avatar?: string;
   phone?: string;
 }
@@ -216,6 +220,30 @@ export const api = {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ query, snapshot }),
+    });
+    return handleResponse(response);
+  },
+
+  /* ── Connections ─────────────────────────────────────────────────────── */
+
+  async sendConnectionRequest(targetUserId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/connections/request`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ target_user_id: targetUserId }),
+    });
+    return handleResponse(response);
+  },
+
+  async getMyConnections(): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/api/connections/mine`, { headers: authHeaders() });
+    return handleResponse(response);
+  },
+
+  async removeConnection(connectionId: string): Promise<{ success: boolean }> {
+    const response = await fetch(`${API_BASE_URL}/api/connections/${connectionId}`, {
+      method: 'DELETE',
+      headers: authHeaders(),
     });
     return handleResponse(response);
   },

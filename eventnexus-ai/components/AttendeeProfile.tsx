@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { User, Briefcase, Mail, Phone, Sparkles, Save, CheckCircle, AlertCircle } from 'lucide-react';
+import { User, Briefcase, Mail, Phone, Sparkles, Save, CheckCircle, AlertCircle, Plus, X, Target, Wrench } from 'lucide-react';
 import { api, ProfileUpdate } from '../services/api';
 
 const INTEREST_OPTIONS = [
@@ -11,6 +11,39 @@ const INTEREST_OPTIONS = [
 interface AttendeeProfileProps {
   currentUser: any;
   onProfileUpdate: (user: any) => void;
+}
+
+function TagInput({ tags, onChange, placeholder }: { tags: string[]; onChange: (t: string[]) => void; placeholder?: string }) {
+  const [input, setInput] = useState('');
+  const add = () => {
+    const val = input.trim();
+    if (val && !tags.includes(val)) {
+      onChange([...tags, val]);
+    }
+    setInput('');
+  };
+  return (
+    <div className="mt-2">
+      <div className="flex flex-wrap gap-2 mb-2">
+        {tags.map(t => (
+          <span key={t} className="inline-flex items-center gap-1 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 px-2.5 py-1 rounded-lg text-xs font-bold">
+            {t}
+            <button onClick={() => onChange(tags.filter(x => x !== t))} className="hover:text-red-400 transition-colors"><X size={12} /></button>
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), add())}
+          placeholder={placeholder}
+          className="flex-1 bg-theme-bg border border-theme-border rounded-xl py-2 px-3 text-sm text-theme-text focus:ring-2 focus:ring-indigo-500 outline-none placeholder:text-theme-sub"
+        />
+        <button onClick={add} className="px-3 py-2 bg-indigo-600/10 border border-indigo-500/20 rounded-xl text-indigo-400 hover:bg-indigo-600/20 transition-colors"><Plus size={16} /></button>
+      </div>
+    </div>
+  );
 }
 
 const AttendeeProfile: React.FC<AttendeeProfileProps> = ({ currentUser, onProfileUpdate }) => {
@@ -55,6 +88,8 @@ const AttendeeProfile: React.FC<AttendeeProfileProps> = ({ currentUser, onProfil
         company: profile.company,
         industry: profile.industry,
         interests: profile.interests,
+        skills: profile.skills,
+        goals: profile.goals,
         phone: profile.phone,
       };
       const updated = await api.updateProfile(payload);
@@ -194,6 +229,32 @@ const AttendeeProfile: React.FC<AttendeeProfileProps> = ({ currentUser, onProfil
               );
             })}
           </div>
+        </div>
+
+        {/* Skills */}
+        <div>
+          <label className="text-[10px] font-bold text-theme-sub uppercase tracking-widest flex items-center gap-2">
+            <Wrench size={12} className="text-cyan-400" />
+            Skills — what you're good at
+          </label>
+          <TagInput
+            tags={profile?.skills || []}
+            onChange={skills => setProfile({ ...profile, skills })}
+            placeholder="e.g. Python, React, DevOps"
+          />
+        </div>
+
+        {/* Goals */}
+        <div>
+          <label className="text-[10px] font-bold text-theme-sub uppercase tracking-widest flex items-center gap-2">
+            <Target size={12} className="text-amber-400" />
+            Goals — what you're looking for
+          </label>
+          <TagInput
+            tags={profile?.goals || []}
+            onChange={goals => setProfile({ ...profile, goals })}
+            placeholder="e.g. Find co-founder, Learn AI, Hire engineers"
+          />
         </div>
 
         <div className="w-full h-px bg-theme-border" />

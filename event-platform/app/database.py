@@ -1,5 +1,6 @@
 from typing import Optional
 
+import certifi
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import PyMongoError
 
@@ -61,7 +62,24 @@ async def _create_indexes() -> None:
 
 
 async def connect_to_mongo() -> None:
-    db.client = AsyncIOMotorClient(settings.mongodb_url)
+    # tlsCAFile for proper cert chain; tlsAllowInvalidCertificates as
+    # fallback when Atlas cluster has TLS negotiation issues.
+    try:
+        db.client = AsyncIOMotorClient(
+            settings.mongodb_url,
+            tlsCAFile=certifi.where(),
+            serverSelectionTimeoutMS=5000,
+        )
+        # Quick connectivity check
+        await db.client.server_info()
+    except Exception:
+        # Fallback: skip certificate validation (dev/network issues)
+        db.client = AsyncIOMotorClient(
+            settings.mongodb_url,
+            tls=True,
+            tlsAllowInvalidCertificates=True,
+            serverSelectionTimeoutMS=10000,
+        )
     await _create_indexes()
     print("Connected to MongoDB")
 

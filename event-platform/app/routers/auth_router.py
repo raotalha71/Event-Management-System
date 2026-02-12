@@ -29,6 +29,8 @@ class SignupRequest(BaseModel):
     company: Optional[str] = None
     industry: Optional[str] = None
     interests: list[str] = []
+    skills: list[str] = []
+    goals: list[str] = []
     role: str = "ATTENDEE"
 
 
@@ -48,6 +50,8 @@ class ProfileUpdate(BaseModel):
     company: Optional[str] = None
     industry: Optional[str] = None
     interests: Optional[list[str]] = None
+    skills: Optional[list[str]] = None
+    goals: Optional[list[str]] = None
     avatar: Optional[str] = None
     phone: Optional[str] = None
 
@@ -63,6 +67,8 @@ def _serialize_user(user: dict) -> dict:
         "company": user.get("company"),
         "industry": user.get("industry"),
         "interests": user.get("interests", []),
+        "skills": user.get("skills", []),
+        "goals": user.get("goals", []),
         "avatar": user.get("avatar"),
         "phone": user.get("phone"),
         "created_at": user.get("created_at", "").isoformat() if isinstance(user.get("created_at"), datetime) else str(user.get("created_at", "")),
@@ -91,6 +97,8 @@ async def signup(body: SignupRequest):
         "company": body.company,
         "industry": body.industry,
         "interests": body.interests,
+        "skills": body.skills,
+        "goals": body.goals,
         "avatar": None,
         "phone": None,
         "email_verified": False,
@@ -157,7 +165,7 @@ async def update_profile(
     db = await get_database()
     updates: dict = {"updated_at": datetime.utcnow()}
 
-    for field in ("name", "company", "industry", "interests", "avatar", "phone"):
+    for field in ("name", "company", "industry", "interests", "skills", "goals", "avatar", "phone"):
         val = getattr(body, field)
         if val is not None:
             updates[field] = val
@@ -170,7 +178,7 @@ async def update_profile(
 
 @router.get("/attendees")
 async def list_attendees():
-    """List all registered attendees (public profiles for networking)."""
+    """List all registered users (public profiles for networking)."""
     db = await get_database()
-    users = await db.users.find({"role": "ATTENDEE"}).to_list(500)
+    users = await db.users.find().to_list(500)
     return [_serialize_user(u) for u in users]
